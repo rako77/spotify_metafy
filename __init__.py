@@ -1,0 +1,1 @@
+"""The Spotify Metafy integration."""
