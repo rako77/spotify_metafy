@@ -159,8 +159,9 @@ class MetafyMediaPlayer(MediaPlayerDevice):
         """Return the playback state."""
         if self._destination not in self._spotify_media_player.source_list:
             return STATE_UNAVAILABLE
-        # todo make sure _currently_playing is initalized
-        context = self._spotify_media_player._currently_playing["context"]
+        context = self._spotify_media_player._currently_playing.get("context")
+        if context == None:
+            return STATE_UNAVAILABLE
         if context["type"] != MEDIA_TYPE_PLAYLIST:
             return STATE_IDLE
         uri = context["uri"]
