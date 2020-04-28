@@ -1,7 +1,6 @@
 {
   "domain": "spotify_metafy",
   "name": "Spotify Metafy",
-  "config_flow": true,
   "documentation": "https://github.com/rako77/spotify_metafi",
   "requirements": ["spotipy==2.11.1"],
   "ssdp": [],
