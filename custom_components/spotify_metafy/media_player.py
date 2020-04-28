@@ -157,7 +157,7 @@ class MetafyMediaPlayer(MediaPlayerDevice):
     @property
     def state(self) -> Optional[str]:
         """Return the playback state."""
-        if self._destination not in self._spotify_media_player.source_list:
+        if self._spotify_media_player.source_list == None or self._destination not in self._spotify_media_player.source_list:
             return STATE_UNAVAILABLE
         context = self._spotify_media_player._currently_playing.get("context")
         if context == None or context["type"] != MEDIA_TYPE_PLAYLIST:
