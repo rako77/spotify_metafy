@@ -220,7 +220,7 @@ class MetafyMediaPlayer(MediaPlayerDevice):
         self._spotify_media_player.schedule_update_ha_state(True)
 
     @spotify_exception_handler
-    async def async_update(self) -> None:
+    async def update(self) -> None:
         """Update state and attributes."""
         if not self.enabled:
             return
