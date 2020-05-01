@@ -22,11 +22,8 @@ from homeassistant.const import (
     STATE_UNAVAILABLE,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.config_entry_oauth2_flow import OAuth2Session
 from homeassistant.helpers.entity import Entity
 from homeassistant.exceptions import PlatformNotReady
-from homeassistant.helpers.entity_registry import EntityRegistry, async_get_registry
-from homeassistant.helpers.entity_component import async_get_integration
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.event import async_track_state_change
 
@@ -37,7 +34,6 @@ _LOGGER = logging.getLogger(__name__)
 ICON = "mdi:spotify"
 
 SCAN_INTERVAL = timedelta(minutes=30)
-# todo update on state change of spotify component
 
 SUPPORT_SPOTIFY_METAFY = SUPPORT_PAUSE | SUPPORT_PLAY
 
@@ -66,7 +62,7 @@ async def async_setup_platform(
             spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
                 spotify_entity_id
             )
-            if spotify_media_player == None:
+            if spotify_media_player is None:
                 raise PlatformNotReady
             spotify_playlist_info = spotify_media_player._spotify.playlist(uri)
             playlist_name = user_prefix + spotify_playlist_info["name"]
@@ -157,7 +153,10 @@ class MetafyMediaPlayer(MediaPlayerDevice):
     @property
     def state(self) -> Optional[str]:
         """Return the playback state."""
-        if self._spotify_media_player.source_list == None or self._destination not in self._spotify_media_player.source_list:
+        if (
+            self._spotify_media_player.source_list == None
+            or self._destination not in self._spotify_media_player.source_list
+        ):
             return STATE_UNAVAILABLE
         context = self._spotify_media_player._currently_playing.get("context")
         if context == None or context["type"] != MEDIA_TYPE_PLAYLIST:
@@ -220,13 +219,13 @@ class MetafyMediaPlayer(MediaPlayerDevice):
         self._spotify_media_player.schedule_update_ha_state(True)
 
     @spotify_exception_handler
-    async def update(self) -> None:
+    def update(self) -> None:
         """Update state and attributes."""
         if not self.enabled:
             return
 
         if not self._spotify_media_player._session.valid_token:
-            self._spotify_media_player.update()
+            return
 
         # todo make this call less frequently
         playlist_image = self._spotify_media_player._spotify.playlist_cover_image(
