@@ -13,6 +13,8 @@ from homeassistant.components.media_player.const import (
     MEDIA_TYPE_PLAYLIST,
     SUPPORT_PAUSE,
     SUPPORT_PLAY,
+    SUPPORT_SELECT_SOURCE,
+    SUPPORT_SHUFFLE_SET,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -35,7 +37,9 @@ ICON = "mdi:spotify"
 
 SCAN_INTERVAL = timedelta(minutes=30)
 
-SUPPORT_SPOTIFY_METAFY = SUPPORT_PAUSE | SUPPORT_PLAY
+SUPPORT_SPOTIFY_METAFY = (
+    SUPPORT_PAUSE | SUPPORT_PLAY | SUPPORT_SELECT_SOURCE | SUPPORT_SHUFFLE_SET
+)
 
 
 def setup_platform(
@@ -86,7 +90,9 @@ def setup_platform(
 
     for entity in entities:
         track_state_change(
-            hass, [entity._spotify_media_player.entity_id], mmp.update_on_state_change
+            hass,
+            [entity._spotify_media_player.entity_id],
+            entity.update_on_state_change,
         )
 
     return True
@@ -227,6 +233,22 @@ class MetafyMediaPlayer(MediaPlayerDevice):
         """Pause playback."""
         self._spotify_media_player.media_pause()
         self._spotify_media_player.schedule_update_ha_state(True)
+
+    @spotify_exception_handler
+    def set_shuffle(self, shuffle: bool) -> None:
+        """Enable/Disable shuffle mode."""
+        self._spotify_media_player.shuffle(shuffle)
+
+    @property
+    def source_list(self) -> Optional[List[str]]:
+        """Return a list of source devices."""
+        return self._spotify_media_player.source_list
+
+    @spotify_exception_handler
+    def select_source(self, source: str) -> None:
+        """Select playback device."""
+        self._destination = source
+        self._spotify_media_player.select_source(source)
 
     @spotify_exception_handler
     def update(self) -> None:
