@@ -1,2 +1,5 @@
 /custom_components/hacs/
 /*.yaml
+/custom_components/spotify_metafy/__pycache__/*
+/home-assistant.log
+/.*

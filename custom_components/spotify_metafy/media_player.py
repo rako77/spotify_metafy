@@ -25,7 +25,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity_component import EntityComponent
-from homeassistant.helpers.event import async_track_state_change
+from homeassistant.helpers.event import track_state_change
 
 from .const import DOMAIN
 
@@ -41,7 +41,7 @@ SUPPORT_SPOTIFY_METAFY = SUPPORT_PAUSE | SUPPORT_PLAY
 def setup_platform(
     hass: HomeAssistant,
     config: ConfigEntry,
-    async_add_entities: Callable[[List[Entity], bool], None],
+    add_entities: Callable[[List[Entity], bool], None],
     discovery_info=None,
 ) -> None:
     """Set up the Spotify Metafy platform."""
@@ -81,11 +81,14 @@ def setup_platform(
                 spotify_playlist_info,
             )
             entities.append(mmp)
-            async_track_state_change(
-                hass, [spotify_entity_id], mmp.async_update_on_state_change
-            )
 
-    async_add_entities(entities, True)
+    add_entities(entities)
+
+    for entity in entities:
+        track_state_change(
+            hass, [entity._spotify_media_player.entity_id], mmp.update_on_state_change
+        )
+
     return True
 
 
@@ -241,6 +244,6 @@ class MetafyMediaPlayer(MediaPlayerDevice):
         self._spotify_playlist_info["images"] = playlist_image
 
     @spotify_exception_handler
-    def async_update_on_state_change(self, entity_id, old_state, new_state) -> None:
+    def update_on_state_change(self, entity_id, old_state, new_state) -> None:
         """Update state and attributes."""
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
