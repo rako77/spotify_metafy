@@ -38,7 +38,7 @@ SCAN_INTERVAL = timedelta(minutes=30)
 SUPPORT_SPOTIFY_METAFY = SUPPORT_PAUSE | SUPPORT_PLAY
 
 
-async def async_setup_platform(
+def setup_platform(
     hass: HomeAssistant,
     config: ConfigEntry,
     async_add_entities: Callable[[List[Entity], bool], None],
@@ -50,20 +50,27 @@ async def async_setup_platform(
         raise PlatformNotReady
 
     entities: List[MetafyMediaPlayer] = []
+    entity_component: EntityComponent = hass.data[MEDIA_PLAYER_DOMAIN]
+
+    # Make sure all the players are ready
+    for user in config["users"]:
+        spotify_entity_id = user["spotify_entity_id"]
+        spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
+            spotify_entity_id
+        )
+        if spotify_media_player is None:
+            raise PlatformNotReady
 
     for user in config["users"]:
         user_prefix = user["user_prefix"] if "user_prefix" in user else ""
         destination = user["destination"]
         playlists = user["playlists"]
         spotify_entity_id = user["spotify_entity_id"]
-        entity_component: EntityComponent = hass.data[MEDIA_PLAYER_DOMAIN]
+        spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
+            spotify_entity_id
+        )
         for playlist in playlists:
             uri = playlist["uri"]
-            spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
-                spotify_entity_id
-            )
-            if spotify_media_player is None:
-                raise PlatformNotReady
             spotify_playlist_info = spotify_media_player._spotify.playlist(uri)
             playlist_name = user_prefix + spotify_playlist_info["name"]
             mmp = MetafyMediaPlayer(
