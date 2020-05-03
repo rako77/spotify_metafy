@@ -136,7 +136,7 @@ class MetafyMediaPlayer(MediaPlayerDevice):
         self._spotify_media_player = spotify_media_player
         self._spotify_playlist_info = spotify_playlist_info
 
-        self.player_available = False
+        self.player_available = True
 
     @property
     def name(self) -> str:
