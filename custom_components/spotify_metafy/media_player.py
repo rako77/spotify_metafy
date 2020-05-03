@@ -29,6 +29,8 @@ from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.event import track_state_change
 
+import time
+
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -226,12 +228,14 @@ class MetafyMediaPlayer(MediaPlayerDevice):
         self._spotify_media_player.select_source(self._destination)
         self._spotify_media_player.play_media(MEDIA_TYPE_PLAYLIST, self._id)
         self._spotify_media_player.media_play()
+        time.sleep(1)
         self._spotify_media_player.schedule_update_ha_state(True)
 
     @spotify_exception_handler
     def media_pause(self) -> None:
         """Pause playback."""
         self._spotify_media_player.media_pause()
+        time.sleep(1)
         self._spotify_media_player.schedule_update_ha_state(True)
 
     @spotify_exception_handler
