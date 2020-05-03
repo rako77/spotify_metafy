@@ -1,8 +1,5 @@
-# spotify_metafy
+# Spotify Metafy
 Extends the spotify home-assistant integration with entities created from Spotify metadata.
-
-# Spotify-Metafy-Frontend
-Spotify Playlist Images card for home assistant
 
 # TODO
 * Write a Readme. 
