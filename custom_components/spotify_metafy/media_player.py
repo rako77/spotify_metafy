@@ -37,7 +37,7 @@ _LOGGER = logging.getLogger(__name__)
 
 ICON = "mdi:spotify"
 
-SCAN_INTERVAL = timedelta(minutes=30)
+SCAN_INTERVAL = timedelta(hours=2)
 
 SUPPORT_SPOTIFY_METAFY = (
     SUPPORT_PAUSE | SUPPORT_PLAY | SUPPORT_SELECT_SOURCE | SUPPORT_SHUFFLE_SET
