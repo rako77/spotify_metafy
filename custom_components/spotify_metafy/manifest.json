@@ -3,7 +3,7 @@
   "name": "Spotify Metafy",
   "version": "0.2.2",
   "documentation": "https://github.com/rako77/spotify_metafy",
-  "requirements": ["spotipy==2.11.1"],
+  "requirements": ["spotipy==2.11.1", "spotify-token==1.0.0"],
   "ssdp": [],
   "zeroconf": [],
   "homekit": {},

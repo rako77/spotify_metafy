@@ -1,10 +1,13 @@
 """Support for interacting with Spotify Metafy."""
 from datetime import timedelta
+import json
 import logging
 from typing import Any, Callable, Dict, List, Optional
+import pprint
 
 from aiohttp import ClientError
 from spotipy import Spotify, SpotifyException
+import spotify_token as st
 
 from homeassistant.components.media_player import DOMAIN as MEDIA_PLAYER_DOMAIN
 from homeassistant.components.media_player import MediaPlayerDevice
@@ -28,6 +31,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.event import track_state_change
+from homeassistant.components.cast.media_player import CastDevice
 
 import time
 
@@ -43,6 +47,7 @@ SUPPORT_SPOTIFY_METAFY = (
     SUPPORT_PAUSE | SUPPORT_PLAY | SUPPORT_SELECT_SOURCE | SUPPORT_SHUFFLE_SET
 )
 
+access_token = None
 
 def setup_platform(
     hass: HomeAssistant,
@@ -57,6 +62,7 @@ def setup_platform(
 
     entities: List[MetafyMediaPlayer] = []
     entity_component: EntityComponent = hass.data[MEDIA_PLAYER_DOMAIN]
+    
 
     # Make sure all the players are ready
     for user in config["users"]:
@@ -64,7 +70,16 @@ def setup_platform(
         spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
             spotify_entity_id
         )
-        if spotify_media_player is None:
+        chromecast_entity: CastDevice = entity_component.get_entity(user["chromecast_entity_id"])
+
+        sp_key = user['sp_key']
+        sp_dc = user['sp_dc']
+        global access_token
+        if access_token is None:
+            access_token, _ = st.start_session(sp_dc, sp_key)
+
+        print(access_token)
+        if spotify_media_player is None or chromecast_entity is None:
             raise PlatformNotReady
 
     for user in config["users"]:
@@ -75,6 +90,7 @@ def setup_platform(
         spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
             spotify_entity_id
         )
+        chromecast_entity = entity_component.get_entity(user["chromecast_entity_id"])
         for playlist in playlists:
             uri = playlist["uri"]
             spotify_playlist_info = spotify_media_player._spotify.playlist(uri)
@@ -85,6 +101,7 @@ def setup_platform(
                 destination,
                 playlist_name,
                 spotify_playlist_info,
+                chromecast_entity
             )
             entities.append(mmp)
 
@@ -128,6 +145,7 @@ class MetafyMediaPlayer(MediaPlayerDevice):
         destination: str,
         name: str,
         spotify_playlist_info: str,
+        chromecast_entity: CastDevice
     ):
         """Initialize."""
         self._id = playlist_id
@@ -136,7 +154,24 @@ class MetafyMediaPlayer(MediaPlayerDevice):
         self._spotify_media_player = spotify_media_player
         self._spotify_playlist_info = spotify_playlist_info
 
+        print(self._access_token)
+        print(self._spotify_media_player.access_token)
+        #pprint.pprint(vars(self._spotify_media_player))
+        pprint.pprint(self._spotify_media_player._session.token)
+        print(type(chromecast_entity))
+        pprint.pprint(vars(chromecast_entity))
+        self.chromecast_entity = chromecast_entity
+
         self.player_available = True
+
+    @property
+    def creds(self) -> str:
+        """Return the creds"""
+        return self._spotify_media_player.access_token
+
+    @property
+    def yolo(self) -> str:
+        return "YOLO"
 
     @property
     def name(self) -> str:
@@ -171,6 +206,7 @@ class MetafyMediaPlayer(MediaPlayerDevice):
     @property
     def state(self) -> Optional[str]:
         """Return the playback state."""
+        return STATE_IDLE
         if (
             self._spotify_media_player.source_list == None
             or self._destination not in self._spotify_media_player.source_list
@@ -225,11 +261,15 @@ class MetafyMediaPlayer(MediaPlayerDevice):
     @spotify_exception_handler
     def media_play(self) -> None:
         """Start or resume playback."""
-        self._spotify_media_player.select_source(self._destination)
-        self._spotify_media_player.play_media(MEDIA_TYPE_PLAYLIST, self._id)
-        self._spotify_media_player.media_play()
-        time.sleep(1)
-        self._spotify_media_player.schedule_update_ha_state(True)
+        global access_token
+        self.chromecast_entity.play_media(media_type='cast', media_id=json.dumps(
+            {"app_name": "spotify", "media_id": "unused", "access_token": access_token}
+        ))
+        #self._spotify_media_player.select_source(self._destination)
+        #self._spotify_media_player.play_media(MEDIA_TYPE_PLAYLIST, self._id)
+        #self._spotify_media_player.media_play()
+        #time.sleep(1)
+        #self._spotify_media_player.schedule_update_ha_state(True)
 
     @spotify_exception_handler
     def media_pause(self) -> None:
