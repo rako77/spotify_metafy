@@ -1,13 +1,16 @@
 """Support for interacting with Spotify Metafy."""
-from datetime import timedelta
+from collections import namedtuple
+from datetime import datetime, timedelta
 import json
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 import pprint
 
 from aiohttp import ClientError
+from attr import dataclass
+from homeassistant.helpers import event
 from spotipy import Spotify, SpotifyException
-import spotify_token as st
+import spotify_token
 
 from homeassistant.components.media_player import DOMAIN as MEDIA_PLAYER_DOMAIN
 from homeassistant.components.media_player import MediaPlayerDevice
@@ -49,6 +52,7 @@ SUPPORT_SPOTIFY_METAFY = (
 
 access_token = None
 
+
 def setup_platform(
     hass: HomeAssistant,
     config: ConfigEntry,
@@ -62,7 +66,6 @@ def setup_platform(
 
     entities: List[MetafyMediaPlayer] = []
     entity_component: EntityComponent = hass.data[MEDIA_PLAYER_DOMAIN]
-    
 
     # Make sure all the players are ready
     for user in config["users"]:
@@ -70,14 +73,15 @@ def setup_platform(
         spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
             spotify_entity_id
         )
-        chromecast_entity: CastDevice = entity_component.get_entity(user["chromecast_entity_id"])
+        chromecast_entity: CastDevice = entity_component.get_entity(
+            user["chromecast_entity_id"]
+        )
 
-        sp_key = user['sp_key']
-        sp_dc = user['sp_dc']
+        sp_key = user["sp_key"]
+        sp_dc = user["sp_dc"]
         global access_token
         if access_token is None:
-            access_token, _ = st.start_session(sp_dc, sp_key)
-
+            pass
         print(access_token)
         if spotify_media_player is None or chromecast_entity is None:
             raise PlatformNotReady
@@ -101,7 +105,7 @@ def setup_platform(
                 destination,
                 playlist_name,
                 spotify_playlist_info,
-                chromecast_entity
+                chromecast_entity,
             )
             entities.append(mmp)
 
@@ -145,7 +149,7 @@ class MetafyMediaPlayer(MediaPlayerDevice):
         destination: str,
         name: str,
         spotify_playlist_info: str,
-        chromecast_entity: CastDevice
+        chromecast_entity: CastDevice,
     ):
         """Initialize."""
         self._id = playlist_id
@@ -156,7 +160,7 @@ class MetafyMediaPlayer(MediaPlayerDevice):
 
         print(self._access_token)
         print(self._spotify_media_player.access_token)
-        #pprint.pprint(vars(self._spotify_media_player))
+        # pprint.pprint(vars(self._spotify_media_player))
         pprint.pprint(self._spotify_media_player._session.token)
         print(type(chromecast_entity))
         pprint.pprint(vars(chromecast_entity))
@@ -262,14 +266,21 @@ class MetafyMediaPlayer(MediaPlayerDevice):
     def media_play(self) -> None:
         """Start or resume playback."""
         global access_token
-        self.chromecast_entity.play_media(media_type='cast', media_id=json.dumps(
-            {"app_name": "spotify", "media_id": "unused", "access_token": access_token}
-        ))
-        #self._spotify_media_player.select_source(self._destination)
-        #self._spotify_media_player.play_media(MEDIA_TYPE_PLAYLIST, self._id)
-        #self._spotify_media_player.media_play()
-        #time.sleep(1)
-        #self._spotify_media_player.schedule_update_ha_state(True)
+        self.chromecast_entity.play_media(
+            media_type="cast",
+            media_id=json.dumps(
+                {
+                    "app_name": "spotify",
+                    "media_id": "unused",
+                    "access_token": access_token,
+                }
+            ),
+        )
+        # self._spotify_media_player.select_source(self._destination)
+        # self._spotify_media_player.play_media(MEDIA_TYPE_PLAYLIST, self._id)
+        # self._spotify_media_player.media_play()
+        # time.sleep(1)
+        # self._spotify_media_player.schedule_update_ha_state(True)
 
     @spotify_exception_handler
     def media_pause(self) -> None:
@@ -313,3 +324,38 @@ class MetafyMediaPlayer(MediaPlayerDevice):
     def update_on_state_change(self, entity_id, old_state, new_state) -> None:
         """Update state and attributes."""
         self.schedule_update_ha_state()
+
+@dataclass
+class Token:
+    access_token: str
+    expiry_time: datetime
+
+@dataclass
+class User:
+    prefix: str
+    sp_key: str
+    sp_dc: str
+
+    token: Union[None, Token]
+
+class SpotifyTokenManager:
+
+    data: Dict[str, User]
+
+    def __init__(self, hass: HomeAssistant, config: dict):
+        self.hass = hass
+        self.data = {
+            user["user_prefix"]: User(
+                prefix=user["user_prefix"], sp_dc=user["sp_dc"], sp_key=user["sp_key"], token=None
+            )
+            for user in config["users"]
+        }
+
+        event.async_track_time_interval(hass, self.update_tokens, timedelta(minutes=10))
+
+    def update_tokens(self):
+        for user in self.data.values():
+            token, expiry = spotify_token.start_session(dc=user.sp_dc, key=user.sp_key)
+            user.token = Token(access_token=token, expiry_time=datetime.fromtimestamp(expiry))
+
+        _LOGGER.debug("Updated tokens " + pprint.pformat(self.data))
