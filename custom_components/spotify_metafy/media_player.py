@@ -3,7 +3,7 @@ from collections import namedtuple
 from datetime import datetime, timedelta
 import json
 import logging
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 import pprint
 
 from aiohttp import ClientError
@@ -29,7 +29,7 @@ from homeassistant.const import (
     STATE_PLAYING,
     STATE_UNAVAILABLE,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers.entity import Entity
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.entity_component import EntityComponent
@@ -61,53 +61,79 @@ def setup_platform(
 ) -> None:
     """Set up the Spotify Metafy platform."""
 
-    if "spotify" not in hass.data:
-        raise PlatformNotReady
-
-    entities: List[MetafyMediaPlayer] = []
+    token_manager = SpotifyTokenManager(hass, config)
     entity_component: EntityComponent = hass.data[MEDIA_PLAYER_DOMAIN]
 
-    # Make sure all the players are ready
-    for user in config["users"]:
-        spotify_entity_id = user["spotify_entity_id"]
-        spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
-            spotify_entity_id
-        )
-        chromecast_entity: CastDevice = entity_component.get_entity(
-            user["chromecast_entity_id"]
-        )
+    def on_entity_added(event: Event):
+        for user in config["users"]:
+            spotify_entity_id = user['spotify_entity_id']
+            chromecast_entity_id = user['chromecast_entity_id']
+            if event.data['entity_id'] in [chromecast_entity_id, spotify_entity_id]:
+                chromecast_entity = entity_component.get_entity(chromecast_entity_id)
+                spotify_entity =  cast(SpotifyMediaPlayer, entity_component.get_entity(spotify_entity_id))
 
-        sp_key = user["sp_key"]
-        sp_dc = user["sp_dc"]
-        global access_token
-        if access_token is None:
-            pass
-        print(access_token)
-        if spotify_media_player is None or chromecast_entity is None:
-            raise PlatformNotReady
+                # We'll come back here when the other entity updates
+                if chromecast_entity is None or spotify_entity is None:
+                    return
 
-    for user in config["users"]:
-        user_prefix = user["user_prefix"] if "user_prefix" in user else ""
-        destination = user["destination"]
-        playlists = user["playlists"]
-        spotify_entity_id = user["spotify_entity_id"]
-        spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
-            spotify_entity_id
-        )
-        chromecast_entity = entity_component.get_entity(user["chromecast_entity_id"])
-        for playlist in playlists:
-            uri = playlist["uri"]
-            spotify_playlist_info = spotify_media_player._spotify.playlist(uri)
-            playlist_name = user_prefix + spotify_playlist_info["name"]
-            mmp = MetafyMediaPlayer(
-                spotify_media_player,
-                uri,
+                user_prefix = user["user_prefix"] if "user_prefix" in user else ""
+                destination = user["destination"]
+                playlists = user["playlists"]
+
+
+                add_entities([MetafyMediaPlayer(
+                spotify_entity,
+                playlist["uri"],
                 destination,
-                playlist_name,
-                spotify_playlist_info,
+                user_prefix + spotify_entity._spotify.spotify_playlist_info[playlist['uri']]['name'],
+                spotify_entity._spotify.spotify_playlist_info[playlist['uri']],
                 chromecast_entity,
-            )
-            entities.append(mmp)
+            ) for playlist in playlists])
+    event.async_track_state_added_domain(hass, 'media_player', on_entity_added)
+
+    entities: List[MetafyMediaPlayer] = []
+
+    # Make sure all the players are ready
+    #for user in config["users"]:
+    #    spotify_entity_id = user["spotify_entity_id"]
+    #    spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
+    #        spotify_entity_id
+    #    )
+    #    chromecast_entity: CastDevice = entity_component.get_entity(
+    #        user["chromecast_entity_id"]
+    #    )
+
+    #    sp_key = user["sp_key"]
+    #    sp_dc = user["sp_dc"]
+    #    global access_token
+    #    if access_token is None:
+    #        pass
+    #    print(access_token)
+    #    if spotify_media_player is None or chromecast_entity is None:
+    #        raise PlatformNotReady
+
+    #for user in config["users"]:
+    #    user_prefix = user["user_prefix"] if "user_prefix" in user else ""
+    #    destination = user["destination"]
+    #    playlists = user["playlists"]
+    #    spotify_entity_id = user["spotify_entity_id"]
+    #    spotify_media_player: SpotifyMediaPlayer = entity_component.get_entity(
+    #        spotify_entity_id
+    #    )
+    #    chromecast_entity = entity_component.get_entity(user["chromecast_entity_id"])
+    #    for playlist in playlists:
+    #        uri = playlist["uri"]
+    #        spotify_playlist_info = spotify_media_player._spotify.playlist(uri)
+    #        playlist_name = user_prefix + spotify_playlist_info["name"]
+    #        mmp = MetafyMediaPlayer(
+    #            spotify_media_player,
+    #            uri,
+    #            destination,
+    #            playlist_name,
+    #            spotify_playlist_info,
+    #            chromecast_entity,
+    #        )
+    #        entities.append(mmp)
 
     add_entities(entities)
 
@@ -342,7 +368,7 @@ class SpotifyTokenManager:
 
     data: Dict[str, User]
 
-    def __init__(self, hass: HomeAssistant, config: dict):
+    def __init__(self, hass: HomeAssistant, config: ConfigEntry):
         self.hass = hass
         self.data = {
             user["user_prefix"]: User(
@@ -353,7 +379,7 @@ class SpotifyTokenManager:
 
         event.async_track_time_interval(hass, self.update_tokens, timedelta(minutes=10))
 
-    def update_tokens(self):
+    def update_tokens(self, arg):
         for user in self.data.values():
             token, expiry = spotify_token.start_session(dc=user.sp_dc, key=user.sp_key)
             user.token = Token(access_token=token, expiry_time=datetime.fromtimestamp(expiry))
